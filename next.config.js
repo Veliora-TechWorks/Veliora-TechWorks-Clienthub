@@ -1,7 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   experimental: {
-    serverActions: { allowedOrigins: ["localhost:3000"] },
+    serverActions: { allowedOrigins: ["localhost:3000", process.env.NEXTAUTH_URL?.replace(/^https?:\/\//, "") ?? ""].filter(Boolean) },
   },
   images: {
     domains: ["avatars.githubusercontent.com", "lh3.googleusercontent.com"],

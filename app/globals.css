@@ -1,0 +1,82 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&family=Inter:wght@300;400;500;600&display=swap');
+
+@layer base {
+  :root {
+    --background: 0 0% 98%;
+    --foreground: 210 11% 15%;
+    --card: 0 0% 100%;
+    --card-foreground: 210 11% 15%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 210 11% 15%;
+    --primary: 45 85% 60%;
+    --primary-foreground: 210 11% 15%;
+    --secondary: 210 11% 96%;
+    --secondary-foreground: 210 11% 15%;
+    --muted: 210 11% 96%;
+    --muted-foreground: 210 11% 45%;
+    --accent: 210 11% 96%;
+    --accent-foreground: 210 11% 15%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 210 11% 90%;
+    --input: 210 11% 90%;
+    --ring: 45 85% 60%;
+    --radius: 0.75rem;
+  }
+
+  .dark {
+    --background: 210 11% 10%;
+    --foreground: 0 0% 95%;
+    --card: 210 11% 13%;
+    --card-foreground: 0 0% 95%;
+    --popover: 210 11% 13%;
+    --popover-foreground: 0 0% 95%;
+    --primary: 45 85% 60%;
+    --primary-foreground: 210 11% 15%;
+    --secondary: 210 11% 18%;
+    --secondary-foreground: 0 0% 95%;
+    --muted: 210 11% 18%;
+    --muted-foreground: 210 11% 60%;
+    --accent: 210 11% 18%;
+    --accent-foreground: 0 0% 95%;
+    --destructive: 0 62% 50%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 210 11% 20%;
+    --input: 210 11% 20%;
+    --ring: 45 85% 60%;
+  }
+}
+
+@layer base {
+  * { @apply border-border; }
+  body { @apply bg-background text-foreground font-body; }
+  h1, h2, h3, h4, h5, h6 { @apply font-heading; }
+}
+
+@layer utilities {
+  .font-heading { font-family: 'Poppins', sans-serif; }
+  .font-body { font-family: 'Inter', sans-serif; }
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #ecc94b40; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #ecc94b80; }
+
+/* Mobile safe area */
+@supports (padding: max(0px)) {
+  .safe-bottom { padding-bottom: max(1rem, env(safe-area-inset-bottom)); }
+}
+
+/* Prevent horizontal overflow on mobile */
+html, body { overflow-x: hidden; }
+
+/* Touch-friendly tap targets */
+@media (max-width: 768px) {
+  button, a { min-height: 36px; }
+}

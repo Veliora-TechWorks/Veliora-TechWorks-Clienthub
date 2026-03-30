@@ -145,7 +145,7 @@ function SidebarContent({
                   )}
                 >
                   <Icon className={cn("shrink-0", isCollapsed ? "w-[18px] h-[18px]" : "w-4 h-4")} />
-                  {!isCollapsed && <span className="truncate">{label}</span>}
+                  {!isCollapsed && <span className="truncate transition-opacity duration-200">{label}</span>}
                   {/* Active dot indicator in collapsed */}
                   {isCollapsed && active && (
                     <span className="absolute right-1 top-1 w-1.5 h-1.5 rounded-full bg-[#ecc94b]" />
@@ -205,21 +205,35 @@ export function Sidebar({ mobileOpen, onMobileClose, collapsed, onToggleCollapse
         />
       </div>
 
-      {/* Mobile overlay */}
-      {mobileOpen && (
-        <div className="lg:hidden fixed inset-0 z-50 flex">
-          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm" onClick={onMobileClose} />
-          <div className="relative z-10 h-full">
-            <SidebarContent
-              collapsed={false}
-              isMobile={true}
-              pathname={pathname}
-              onMobileClose={onMobileClose}
-              onToggleCollapse={onToggleCollapse}
-            />
-          </div>
+      {/* Mobile overlay — always mounted so CSS transition works */}
+      <div
+        className={cn(
+          "lg:hidden fixed inset-0 z-50 flex transition-all duration-300",
+          mobileOpen ? "visible" : "invisible"
+        )}
+      >
+        <div
+          className={cn(
+            "fixed inset-0 bg-black/60 backdrop-blur-sm transition-opacity duration-300",
+            mobileOpen ? "opacity-100" : "opacity-0"
+          )}
+          onClick={onMobileClose}
+        />
+        <div
+          className={cn(
+            "relative z-10 h-full transition-transform duration-300 ease-in-out",
+            mobileOpen ? "translate-x-0" : "-translate-x-full"
+          )}
+        >
+          <SidebarContent
+            collapsed={false}
+            isMobile={true}
+            pathname={pathname}
+            onMobileClose={onMobileClose}
+            onToggleCollapse={onToggleCollapse}
+          />
         </div>
-      )}
+      </div>
     </>
   )
 }

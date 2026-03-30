@@ -1,7 +1,12 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   experimental: {
-    serverActions: { allowedOrigins: ["localhost:3000", process.env.NEXTAUTH_URL?.replace(/^https?:\/\//, "") ?? ""].filter(Boolean) },
+    serverActions: {
+      allowedOrigins: [
+        "localhost:3000",
+        "veliora-tech-works-clienthub.vercel.app",
+      ],
+    },
   },
   images: {
     domains: ["avatars.githubusercontent.com", "lh3.googleusercontent.com"],

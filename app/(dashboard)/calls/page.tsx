@@ -6,12 +6,12 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { toast } from "@/hooks/use-toast"
 import { formatDate, formatDateTime } from "@/lib/utils"
-import { Plus, Search, Trash2, Loader2, Calendar } from "lucide-react"
+import { Plus, Search, Trash2, Loader2, Calendar, Pencil } from "lucide-react"
 
 export default function CallsPage() {
   const [calls, setCalls] = useState<any[]>([])
@@ -19,6 +19,7 @@ export default function CallsPage() {
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState("")
   const [open, setOpen] = useState(false)
+  const [editing, setEditing] = useState<any>(null)
   const [saving, setSaving] = useState(false)
 
   const { register, handleSubmit, reset, setValue } = useForm<any>()
@@ -26,15 +27,39 @@ export default function CallsPage() {
   const load = () => {
     setLoading(true)
     Promise.all([fetch("/api/calls").then(r => r.json()), fetch("/api/clients").then(r => r.json())])
-      .then(([c, cl]) => { setCalls(c); setClients(cl); setLoading(false) })
+      .then(([c, cl]) => { setCalls(Array.isArray(c) ? c : []); setClients(Array.isArray(cl) ? cl : []); setLoading(false) })
   }
   useEffect(() => { load() }, [])
 
+  const openAdd = () => {
+    setEditing(null)
+    reset({ date: new Date().toISOString().slice(0, 16), clientId: "", duration: "", outcome: "", notes: "", nextCall: "" })
+    setOpen(true)
+  }
+  const openEdit = (c: any) => {
+    setEditing(c)
+    reset({
+      clientId: c.clientId,
+      date: c.date ? c.date.slice(0, 16) : "",
+      duration: c.duration || "",
+      outcome: c.outcome || "",
+      notes: c.notes || "",
+      nextCall: c.nextCall ? c.nextCall.split("T")[0] : "",
+    })
+    setOpen(true)
+  }
+
   const onSubmit = async (data: any) => {
     setSaving(true)
-    const res = await fetch("/api/calls", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) })
-    setSaving(false)
-    if (res.ok) { toast({ title: "Call logged" }); setOpen(false); reset(); load() }
+    if (editing) {
+      const res = await fetch(`/api/calls/${editing.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) })
+      setSaving(false)
+      if (res.ok) { toast({ title: "Call updated" }); setOpen(false); reset(); load() }
+    } else {
+      const res = await fetch("/api/calls", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) })
+      setSaving(false)
+      if (res.ok) { toast({ title: "Call logged" }); setOpen(false); reset(); load() }
+    }
   }
 
   const deleteCall = async (id: string) => {
@@ -58,7 +83,7 @@ export default function CallsPage() {
           <h1 className="text-xl md:text-2xl font-heading font-bold">Call Logs</h1>
           <p className="text-muted-foreground text-sm mt-1">{calls.length} calls · {upcoming.length} follow-ups scheduled</p>
         </div>
-        <Button size="sm" onClick={() => { reset({ date: new Date().toISOString().slice(0, 16) }); setOpen(true) }} className="gap-2 self-start sm:self-auto">
+        <Button size="sm" onClick={openAdd} className="gap-2 self-start sm:self-auto bg-[#ecc94b] hover:bg-[#d4a017] text-[#212529] font-semibold">
           <Plus className="w-4 h-4" /> Log Call
         </Button>
       </div>
@@ -102,9 +127,10 @@ export default function CallsPage() {
                         <p className="font-medium text-sm">{c.client?.name}</p>
                         <p className="text-xs text-muted-foreground">{formatDateTime(c.date)}{c.duration ? ` · ${c.duration} min` : ""}</p>
                       </div>
-                      <Button variant="ghost" size="icon" className="w-7 h-7 text-red-500 shrink-0" onClick={() => deleteCall(c.id)}>
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </Button>
+                      <div className="flex gap-1 shrink-0">
+                        <Button variant="ghost" size="icon" className="w-7 h-7" onClick={() => openEdit(c)}><Pencil className="w-3.5 h-3.5" /></Button>
+                        <Button variant="ghost" size="icon" className="w-7 h-7 text-red-500" onClick={() => deleteCall(c.id)}><Trash2 className="w-3.5 h-3.5" /></Button>
+                      </div>
                     </div>
                     {c.notes && <p className="text-xs text-muted-foreground line-clamp-2 mt-1">{c.notes}</p>}
                     {c.nextCall && (
@@ -153,10 +179,9 @@ export default function CallsPage() {
                           ) : "—"}
                         </TableCell>
                         <TableCell>
-                          <div className="flex justify-end">
-                            <Button variant="ghost" size="icon" className="w-8 h-8 text-red-500" onClick={() => deleteCall(c.id)}>
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
+                          <div className="flex justify-end gap-1">
+                            <Button variant="ghost" size="icon" className="w-8 h-8" onClick={() => openEdit(c)}><Pencil className="w-4 h-4" /></Button>
+                            <Button variant="ghost" size="icon" className="w-8 h-8 text-red-500" onClick={() => deleteCall(c.id)}><Trash2 className="w-4 h-4" /></Button>
                           </div>
                         </TableCell>
                       </TableRow>
@@ -170,46 +195,67 @@ export default function CallsPage() {
       </Card>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-md w-[calc(100vw-2rem)] sm:w-full">
-          <DialogHeader><DialogTitle>Log a Call</DialogTitle></DialogHeader>
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-            <div className="space-y-1.5">
-              <Label>Client *</Label>
-              <Select onValueChange={v => setValue("clientId", v)}>
-                <SelectTrigger><SelectValue placeholder="Select client" /></SelectTrigger>
-                <SelectContent>
-                  {clients.map(c => <SelectItem key={c.id} value={c.id}>{c.name} {c.company ? `(${c.company})` : ""}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
+        <DialogContent className="max-w-lg p-0 gap-0">
+          <DialogHeader className="px-6 pt-6 pb-4 border-b border-border space-y-0.5">
+            <DialogTitle className="text-base font-heading font-bold">{editing ? "Edit Call" : "Log a Call"}</DialogTitle>
+            <p className="text-xs text-muted-foreground">{editing ? "Update call details" : "Record a client call and schedule follow-ups"}</p>
+          </DialogHeader>
+
+          <form onSubmit={handleSubmit(onSubmit)}>
+            <div className="px-6 py-5 space-y-5">
+
+              {/* Client */}
               <div className="space-y-1.5">
-                <Label>Date & Time</Label>
-                <Input {...register("date")} type="datetime-local" />
+                <Label className="text-sm font-medium">Client <span className="text-red-500">*</span></Label>
+                <Select key={editing?.clientId ?? "new"} defaultValue={editing?.clientId} onValueChange={v => setValue("clientId", v)}>
+                  <SelectTrigger className="h-10"><SelectValue placeholder="Select a client…" /></SelectTrigger>
+                  <SelectContent>{clients.map(c => <SelectItem key={c.id} value={c.id}>{c.name}{c.company ? ` · ${c.company}` : ""}</SelectItem>)}</SelectContent>
+                </Select>
               </div>
-              <div className="space-y-1.5">
-                <Label>Duration (min)</Label>
-                <Input {...register("duration")} type="number" placeholder="30" />
+
+              <div className="border-t border-border" />
+
+              {/* Date & Duration */}
+              <div className="space-y-3">
+                <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">Call Details</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-sm font-medium">Date & Time</Label>
+                    <Input {...register("date")} type="datetime-local" className="h-10" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-sm font-medium">Duration (minutes)</Label>
+                    <Input {...register("duration")} type="number" placeholder="30" className="h-10" />
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-sm font-medium">Outcome</Label>
+                  <Input {...register("outcome")} placeholder="e.g. Positive — proceeding with proposal" className="h-10" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-sm font-medium">Notes</Label>
+                  <Textarea {...register("notes")} placeholder="What was discussed…" rows={3} className="resize-none" />
+                </div>
+              </div>
+
+              <div className="border-t border-border" />
+
+              {/* Follow-up */}
+              <div className="space-y-2">
+                <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">Follow-up</p>
+                <div className="space-y-1.5">
+                  <Label className="text-sm font-medium">Schedule Follow-up Date</Label>
+                  <Input {...register("nextCall")} type="date" className="h-10" />
+                </div>
               </div>
             </div>
-            <div className="space-y-1.5">
-              <Label>Notes</Label>
-              <Textarea {...register("notes")} placeholder="What was discussed..." rows={3} />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Outcome</Label>
-              <Input {...register("outcome")} placeholder="e.g. Positive - proceeding with proposal" />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Schedule Follow-up</Label>
-              <Input {...register("nextCall")} type="date" />
-            </div>
-            <DialogFooter className="flex-col sm:flex-row gap-2">
+
+            <div className="px-6 py-4 border-t border-border flex flex-col-reverse sm:flex-row gap-2 justify-end bg-muted/20">
               <Button type="button" variant="outline" onClick={() => setOpen(false)} className="w-full sm:w-auto">Cancel</Button>
-              <Button type="submit" disabled={saving} className="w-full sm:w-auto">
-                {saving ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Saving...</> : "Log Call"}
+              <Button type="submit" disabled={saving} className="w-full sm:w-auto bg-[#ecc94b] hover:bg-[#d4a017] text-[#212529] font-semibold gap-2">
+                {saving ? <><Loader2 className="w-4 h-4 animate-spin" />Saving…</> : editing ? "Update Call" : "Log Call"}
               </Button>
-            </DialogFooter>
+            </div>
           </form>
         </DialogContent>
       </Dialog>

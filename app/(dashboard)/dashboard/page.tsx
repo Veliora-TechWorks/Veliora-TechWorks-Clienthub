@@ -1,5 +1,6 @@
 "use client"
 import { useEffect, useState } from "react"
+import { useRouter } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Users, FolderKanban, DollarSign, UserPlus, TrendingUp, Activity } from "lucide-react"
@@ -13,9 +14,13 @@ interface DashboardData {
   leadsByStatus: Array<{ status: string; _count: number }>
 }
 
-function KpiCard({ title, value, icon: Icon, color, sub }: { title: string; value: string; icon: any; color: string; sub?: string }) {
+function KpiCard({ title, value, icon: Icon, color, sub, href }: { title: string; value: string; icon: any; color: string; sub?: string; href?: string }) {
+  const router = useRouter()
   return (
-    <Card className="border-0 shadow-sm hover:shadow-md transition-shadow">
+    <Card
+      className={`border-0 shadow-sm hover:shadow-md transition-shadow ${href ? "cursor-pointer" : ""}`}
+      onClick={() => href && router.push(href)}
+    >
       <CardContent className="p-4 md:p-6">
         <div className="flex items-center justify-between">
           <div>
@@ -87,10 +92,10 @@ export default function DashboardPage() {
           Array(4).fill(0).map((_, i) => <SkeletonCard key={i} />)
         ) : (
           <>
-            <KpiCard title="Total Clients" value={String(data?.kpis.totalClients || 0)} icon={Users} color="bg-[#ecc94b]/20 text-[#b7950b]" sub="Active accounts" />
-            <KpiCard title="Total Revenue" value={formatCurrency(data?.kpis.totalRevenue || 0)} icon={DollarSign} color="bg-green-100 text-green-700" sub="Payments received" />
-            <KpiCard title="Projects" value={String(data?.kpis.totalProjects || 0)} icon={FolderKanban} color="bg-blue-100 text-blue-700" sub="All projects" />
-            <KpiCard title="Leads" value={String(data?.kpis.totalLeads || 0)} icon={UserPlus} color="bg-orange-100 text-orange-700" sub="In pipeline" />
+            <KpiCard title="Total Clients" value={String(data?.kpis.totalClients || 0)} icon={Users} color="bg-[#ecc94b]/20 text-[#b7950b]" sub="Active accounts" href="/clients" />
+            <KpiCard title="Total Revenue" value={formatCurrency(data?.kpis.totalRevenue || 0)} icon={DollarSign} color="bg-green-100 text-green-700" sub="Payments received" href="/payments" />
+            <KpiCard title="Projects" value={String(data?.kpis.totalProjects || 0)} icon={FolderKanban} color="bg-blue-100 text-blue-700" sub="All projects" href="/projects" />
+            <KpiCard title="Leads" value={String(data?.kpis.totalLeads || 0)} icon={UserPlus} color="bg-orange-100 text-orange-700" sub="In pipeline" href="/leads" />
           </>
         )}
       </div>

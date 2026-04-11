@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import { PageHeader, SearchBar, SkeletonRows, SaveButton } from "@/components/ui/shared"
+import { PageHeader, SearchBar, SkeletonRows } from "@/components/ui/shared"
 import { toast } from "@/hooks/use-toast"
 import { getInitials, formatDate, formatCurrencyIntl, CURRENCIES } from "@/lib/utils"
 import { Plus, Pencil, Trash2, Eye, Download, Loader2 } from "lucide-react"
@@ -44,13 +44,13 @@ export default function ClientsPage() {
   const [open, setOpen] = useState(false)
   const [editing, setEditing] = useState<any>(null)
   const [saving, setSaving] = useState(false)
-  const { register, handleSubmit, reset, setValue, formState: { errors } } = useForm<FormData>({ resolver: zodResolver(schema) })
+  const { register, handleSubmit, reset, setValue, watch, formState: { errors } } = useForm<FormData>({ resolver: zodResolver(schema) })
 
-  const load = () => { setLoading(true); fetch("/api/clients").then(r => r.json()).then(d => { setClients(d); setLoading(false) }) }
+  const load = () => { setLoading(true); fetch("/api/clients").then(r => r.ok ? r.json() : []).then(d => { setClients(Array.isArray(d) ? d : []); setLoading(false) }).catch(() => setLoading(false)) }
   useEffect(() => { load() }, [])
 
   const openAdd = () => { setEditing(null); reset({ name: "", email: "", phone: "", company: "", status: "active", tag: "REGULAR", currency: "INR" }); setOpen(true) }
-  const openEdit = (c: any) => { setEditing(c); reset({ name: c.name, email: c.email, phone: c.phone || "", company: c.company || "", status: c.status, tag: c.tag, currency: c.currency || "INR" }); setOpen(true) }
+  const openEdit = (c: any) => { setEditing(c); reset({ name: c.name, email: c.email, phone: c.phone || "", company: c.company || "", status: c.status || "active", tag: c.tag || "REGULAR", currency: c.currency || "INR" }); setOpen(true) }
 
   const onSubmit = async (data: FormData) => {
     setSaving(true)
@@ -157,43 +157,91 @@ export default function ClientsPage() {
       </Card>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-md w-[calc(100vw-2rem)] sm:w-full">
-          <DialogHeader><DialogTitle>{editing ? "Edit Client" : "Add New Client"}</DialogTitle></DialogHeader>
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-1.5"><Label>Name *</Label><Input {...register("name")} placeholder="John Smith" />{errors.name && <p className="text-xs text-red-500">{errors.name.message}</p>}</div>
-              <div className="space-y-1.5"><Label>Email *</Label><Input {...register("email")} placeholder="john@company.com" />{errors.email && <p className="text-xs text-red-500">{errors.email.message}</p>}</div>
-              <div className="space-y-1.5"><Label>Phone</Label><Input {...register("phone")} placeholder="+91-98765-43210" /></div>
-              <div className="space-y-1.5"><Label>Company</Label><Input {...register("company")} placeholder="Company Inc." /></div>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <Label>Status</Label>
-                <Select defaultValue={editing?.status || "active"} onValueChange={v => setValue("status", v)}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent><SelectItem value="active">Active</SelectItem><SelectItem value="inactive">Inactive</SelectItem><SelectItem value="churned">Churned</SelectItem></SelectContent>
-                </Select>
+        <DialogContent className="max-w-lg p-0 gap-0">
+          <DialogHeader className="px-6 pt-6 pb-4 border-b border-border space-y-0.5">
+            <DialogTitle className="text-base font-heading font-bold">{editing ? "Edit Client" : "New Client"}</DialogTitle>
+            <p className="text-xs text-muted-foreground">{editing ? `Editing ${editing.name}` : "Fill in the details to add a new client"}</p>
+          </DialogHeader>
+
+          <form onSubmit={handleSubmit(onSubmit)}>
+            <div className="px-6 py-5 space-y-5">
+
+              {/* ── Contact Info ── */}
+              <div className="space-y-3">
+                <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">Contact Info</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-sm font-medium">Full Name <span className="text-red-500">*</span></Label>
+                    <Input {...register("name")} placeholder="John Smith" className="h-10" />
+                    {errors.name && <p className="text-xs text-red-500">{errors.name.message}</p>}
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-sm font-medium">Email <span className="text-red-500">*</span></Label>
+                    <Input {...register("email")} placeholder="john@company.com" className="h-10" />
+                    {errors.email && <p className="text-xs text-red-500">{errors.email.message}</p>}
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-sm font-medium">Phone</Label>
+                    <Input {...register("phone")} placeholder="+91-98765-43210" className="h-10" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-sm font-medium">Company</Label>
+                    <Input {...register("company")} placeholder="Company Inc." className="h-10" />
+                  </div>
+                </div>
               </div>
-              <div className="space-y-1.5">
-                <Label>Tag</Label>
-                <Select defaultValue={editing?.tag || "REGULAR"} onValueChange={v => setValue("tag", v)}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent><SelectItem value="REGULAR">Regular</SelectItem><SelectItem value="VIP">VIP</SelectItem><SelectItem value="HIGH_VALUE">High Value</SelectItem><SelectItem value="LEAD">Lead</SelectItem></SelectContent>
-                </Select>
+
+              <div className="border-t border-border" />
+
+              {/* ── Status & Tag ── */}
+              <div className="space-y-3">
+                <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">Classification</p>
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">Status</Label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {([{v:"active",l:"Active",a:"bg-green-50 text-green-700 ring-2 ring-green-400 border-transparent"},{v:"inactive",l:"Inactive",a:"bg-gray-100 text-gray-700 ring-2 ring-gray-400 border-transparent"},{v:"churned",l:"Churned",a:"bg-red-50 text-red-700 ring-2 ring-red-400 border-transparent"}]).map(opt => (
+                      <button key={opt.v} type="button" onClick={() => setValue("status", opt.v)}
+                        className={`py-2 rounded-xl border text-xs font-semibold transition-all text-center ${
+                          watch("status") === opt.v ? opt.a : "border-border text-muted-foreground hover:bg-muted"
+                        }`}>{opt.l}</button>
+                    ))}
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">Tag</Label>
+                  <div className="grid grid-cols-4 gap-2">
+                    {([{v:"REGULAR",l:"Regular",a:"bg-gray-100 text-gray-700 ring-2 ring-gray-400 border-transparent"},{v:"VIP",l:"VIP",a:"bg-yellow-50 text-yellow-700 ring-2 ring-yellow-400 border-transparent"},{v:"HIGH_VALUE",l:"High Value",a:"bg-purple-50 text-purple-700 ring-2 ring-purple-400 border-transparent"},{v:"LEAD",l:"Lead",a:"bg-blue-50 text-blue-700 ring-2 ring-blue-400 border-transparent"}]).map(opt => (
+                      <button key={opt.v} type="button" onClick={() => setValue("tag", opt.v)}
+                        className={`py-2 rounded-xl border text-xs font-semibold transition-all text-center ${
+                          watch("tag") === opt.v ? opt.a : "border-border text-muted-foreground hover:bg-muted"
+                        }`}>{opt.l}</button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div className="border-t border-border" />
+
+              {/* ── Currency ── */}
+              <div className="space-y-2">
+                <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">Billing</p>
+                <div className="space-y-1.5">
+                  <Label className="text-sm font-medium">Currency</Label>
+                  <Select key={editing?.currency ?? "new"} defaultValue={editing?.currency || "INR"} onValueChange={v => setValue("currency", v)}>
+                    <SelectTrigger className="h-10"><SelectValue /></SelectTrigger>
+                    <SelectContent>{CURRENCIES.map(c => <SelectItem key={c.code} value={c.code}>{c.label}</SelectItem>)}</SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">Used for all payments & invoices for this client</p>
+                </div>
               </div>
             </div>
-            <div className="space-y-1.5">
-              <Label>Currency</Label>
-              <Select defaultValue={editing?.currency || "INR"} onValueChange={v => setValue("currency", v)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>{CURRENCIES.map(c => <SelectItem key={c.code} value={c.code}>{c.label}</SelectItem>)}</SelectContent>
-              </Select>
-              <p className="text-xs text-muted-foreground">Currency for this client's payments & invoices</p>
-            </div>
-            <DialogFooter className="flex-col sm:flex-row gap-2">
+
+            <div className="px-6 py-4 border-t border-border flex flex-col-reverse sm:flex-row gap-2 justify-end bg-muted/20">
               <Button type="button" variant="outline" onClick={() => setOpen(false)} className="w-full sm:w-auto">Cancel</Button>
-              <SaveButton saving={saving} label="Add Client" editLabel={editing ? "Update" : undefined} />
-            </DialogFooter>
+              <Button type="submit" disabled={saving} className="w-full sm:w-auto bg-[#ecc94b] hover:bg-[#d4a017] text-[#212529] font-semibold gap-2">
+                {saving ? <><Loader2 className="w-4 h-4 animate-spin" />Saving…</> : editing ? "Update Client" : "Add Client"}
+              </Button>
+            </div>
           </form>
         </DialogContent>
       </Dialog>

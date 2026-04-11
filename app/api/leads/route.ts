@@ -8,8 +8,13 @@ import { v4 as uuidv4 } from "uuid"
 export async function GET() {
   const { error } = await requireAuth()
   if (error) return error
-  const snap = await db.collection("leads").orderBy("status").orderBy("position").get()
-  return NextResponse.json(snap.docs.map((d) => ({ id: d.id, ...d.data() })))
+  try {
+    const snap = await db.collection("leads").orderBy("createdAt", "desc").get()
+    return NextResponse.json(snap.docs.map((d) => ({ id: d.id, ...d.data() })))
+  } catch {
+    const snap = await db.collection("leads").get()
+    return NextResponse.json(snap.docs.map((d) => ({ id: d.id, ...d.data() })))
+  }
 }
 
 export async function POST(req: NextRequest) {

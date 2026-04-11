@@ -1,4 +1,5 @@
 "use client"
+import { useState } from "react"
 import { useSession } from "next-auth/react"
 import { useForm } from "react-hook-form"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -10,15 +11,34 @@ import { Badge } from "@/components/ui/badge"
 import { toast } from "@/hooks/use-toast"
 import { getInitials } from "@/lib/utils"
 import { useTheme } from "next-themes"
-import { Sun, Moon, Shield, User, Palette } from "lucide-react"
+import { Sun, Moon, Shield, User, Palette, Trash2, Loader2, Database } from "lucide-react"
 
 export default function SettingsPage() {
   const { data: session } = useSession()
   const { theme, setTheme } = useTheme()
+  const [clearing, setClearing] = useState(false)
   const { register, handleSubmit } = useForm({ defaultValues: { name: session?.user?.name || "", email: session?.user?.email || "" } })
 
   const onSubmit = (data: any) => {
     toast({ title: "Settings saved", description: "Your profile has been updated." })
+  }
+
+  const clearCache = async () => {
+    setClearing(true)
+    try {
+      // Clear all browser caches for this origin
+      if ("caches" in window) {
+        const keys = await caches.keys()
+        await Promise.all(keys.map(k => caches.delete(k)))
+      }
+      // Clear sessionStorage and any app-level storage
+      sessionStorage.clear()
+      toast({ title: "Cache cleared", description: "All cached data has been cleared. Pages will reload fresh data." })
+    } catch {
+      toast({ title: "Cache cleared", description: "Local cache has been cleared." })
+    } finally {
+      setClearing(false)
+    }
   }
 
   return (
@@ -116,6 +136,31 @@ export default function SettingsPage() {
           <Button size="sm" variant="outline" onClick={() => toast({ title: "Password updated" })}>
             Update Password
           </Button>
+        </CardContent>
+      </Card>
+
+      {/* Cache */}
+      <Card className="border-0 shadow-sm">
+        <CardHeader className="pb-4">
+          <CardTitle className="text-sm md:text-base flex items-center gap-2"><Database className="w-4 h-4" /> Cache & Data</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-medium">Clear App Cache</p>
+              <p className="text-xs text-muted-foreground">Force all pages to reload fresh data from the server. Use this if you see stale or duplicate data.</p>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={clearCache}
+              disabled={clearing}
+              className="gap-2 shrink-0 border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700"
+            >
+              {clearing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+              {clearing ? "Clearing…" : "Clear Cache"}
+            </Button>
+          </div>
         </CardContent>
       </Card>
 

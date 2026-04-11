@@ -4,27 +4,47 @@ import { requireAuth } from "@/lib/api-helpers"
 import { FieldValue } from "firebase-admin/firestore"
 import { v4 as uuidv4 } from "uuid"
 
+function s(data: FirebaseFirestore.DocumentData): any {
+  const out: any = {}
+  for (const [k, v] of Object.entries(data))
+    out[k] = v && typeof v.toDate === "function" ? v.toDate().toISOString() : v
+  return out
+}
+
 export async function GET(req: NextRequest) {
   const { error } = await requireAuth()
   if (error) return error
+
   const { searchParams } = new URL(req.url)
   const projectId = searchParams.get("projectId")
-  let query: FirebaseFirestore.Query = db.collection("tasks").orderBy("createdAt", "desc")
-  if (projectId) query = db.collection("tasks").where("projectId", "==", projectId).orderBy("createdAt", "desc")
-  const snap = await query.get()
-  const tasks = await Promise.all(
-    snap.docs.map(async (doc) => {
+
+  const snap = projectId
+    ? await db.collection("tasks").where("projectId", "==", projectId).orderBy("createdAt", "desc").get()
+    : await db.collection("tasks").orderBy("createdAt", "desc").get()
+
+  if (snap.empty) return NextResponse.json([])
+
+  const projectIds = [...new Set(snap.docs.map(d => d.data().projectId).filter(Boolean))]
+  const projectMap: Record<string, any> = {}
+  if (projectIds.length > 0) {
+    const pdocs = await db.getAll(...projectIds.map(id => db.collection("projects").doc(id)))
+    pdocs.forEach(p => { if (p.exists) projectMap[p.id] = p.data() })
+  }
+
+  const clientIds = [...new Set(Object.values(projectMap).map((p: any) => p.clientId).filter(Boolean))]
+  const clientMap: Record<string, any> = {}
+  if (clientIds.length > 0) {
+    const cdocs = await db.getAll(...clientIds.map(id => db.collection("clients").doc(id)))
+    cdocs.forEach(c => { if (c.exists) clientMap[c.id] = { name: c.data()!.name } })
+  }
+
+  return NextResponse.json(
+    snap.docs.map(doc => {
       const data = doc.data()
-      const projectDoc = await db.collection("projects").doc(data.projectId).get()
-      let client = null
-      if (projectDoc.exists) {
-        const clientDoc = await db.collection("clients").doc(projectDoc.data()!.clientId).get()
-        client = clientDoc.exists ? { name: clientDoc.data()!.name } : null
-      }
-      return { id: doc.id, ...data, project: projectDoc.exists ? { name: projectDoc.data()!.name, client } : null }
+      const proj = projectMap[data.projectId]
+      return { id: doc.id, ...s(data), project: proj ? { name: proj.name, client: clientMap[proj.clientId] || null } : null }
     })
   )
-  return NextResponse.json(tasks)
 }
 
 export async function POST(req: NextRequest) {

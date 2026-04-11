@@ -5,14 +5,14 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { PageHeader, SearchBar, SkeletonRows, StatusBadge, SaveButton } from "@/components/ui/shared"
+import { PageHeader, SearchBar, SkeletonRows, StatusBadge } from "@/components/ui/shared"
 import { toast } from "@/hooks/use-toast"
 import { formatCurrency, formatCurrencyIntl, formatDate, CURRENCIES } from "@/lib/utils"
-import { Plus, Download, Loader2, CheckCircle, Clock, AlertCircle } from "lucide-react"
+import { Plus, Download, Loader2, CheckCircle, Clock, AlertCircle, Pencil, Trash2 } from "lucide-react"
 
 const statusColors: Record<string, string> = {
   PAID: "bg-green-100 text-green-800",
@@ -33,18 +33,33 @@ export default function PaymentsPage() {
   const [payments, setPayments] = useState<any[]>([])
   const [invoices, setInvoices] = useState<any[]>([])
   const [clients, setClients] = useState<any[]>([])
+  const [projects, setProjects] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState("")
   const [payOpen, setPayOpen] = useState(false)
   const [invOpen, setInvOpen] = useState(false)
+  const [editingPay, setEditingPay] = useState<any>(null)
+  const [editingInv, setEditingInv] = useState<any>(null)
   const [saving, setSaving] = useState(false)
+  const [payStatus, setPayStatus] = useState("PENDING")
+  const [selectedClientId, setSelectedClientId] = useState("")
   const payForm = useForm<any>()
   const invForm = useForm<any>()
 
   const load = () => {
     setLoading(true)
-    Promise.all([fetch("/api/payments").then(r => r.json()), fetch("/api/invoices").then(r => r.json()), fetch("/api/clients").then(r => r.json())])
-      .then(([p, inv, c]) => { setPayments(p); setInvoices(inv); setClients(c); setLoading(false) })
+    Promise.all([
+      fetch("/api/payments").then(r => r.json()),
+      fetch("/api/invoices").then(r => r.json()),
+      fetch("/api/clients").then(r => r.json()),
+      fetch("/api/projects").then(r => r.json()),
+    ]).then(([p, inv, c, proj]) => {
+      setPayments(Array.isArray(p) ? p : [])
+      setInvoices(Array.isArray(inv) ? inv : [])
+      setClients(Array.isArray(c) ? c : [])
+      setProjects(Array.isArray(proj) ? proj : [])
+      setLoading(false)
+    })
   }
   useEffect(() => { load() }, [])
 
@@ -53,20 +68,51 @@ export default function PaymentsPage() {
   const totalPending = payments.filter(p => p.status === "PENDING").reduce((s, p) => s + p.amount, 0)
   const totalOverdue = payments.filter(p => p.status === "OVERDUE").reduce((s, p) => s + p.amount, 0)
 
+  const openAddPay = () => {
+    setEditingPay(null)
+    setPayStatus("PENDING")
+    setSelectedClientId("")
+    payForm.reset({ clientId: "", projectId: "", amount: "", description: "", dueDate: "", currency: "INR" })
+    setPayOpen(true)
+  }
+  const openEditPay = (p: any) => {
+    setEditingPay(p)
+    setPayStatus(p.status || "PENDING")
+    setSelectedClientId(p.clientId || "")
+    payForm.reset({ clientId: p.clientId, projectId: p.projectId || "", amount: p.amount, description: p.description || "", dueDate: p.dueDate ? p.dueDate.split("T")[0] : "", currency: p.currency || "INR" })
+    setPayOpen(true)
+  }
+  const openEditInv = (inv: any) => {
+    setEditingInv(inv)
+    invForm.reset({ clientId: inv.clientId, description: inv.items?.[0]?.description || "", amount: inv.items?.[0]?.amount || inv.subtotal, tax: inv.tax || 0, dueDate: inv.dueDate ? inv.dueDate.split("T")[0] : "" })
+    setInvOpen(true)
+  }
+
   const onPaySubmit = async (data: any) => {
     setSaving(true)
-    await fetch("/api/payments", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) })
-    setSaving(false); toast({ title: "Payment added" }); setPayOpen(false); payForm.reset(); load()
+    const body = { ...data, status: payStatus }
+    if (editingPay) {
+      await fetch(`/api/payments/${editingPay.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })
+      toast({ title: "Payment updated" })
+    } else {
+      await fetch("/api/payments", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })
+      toast({ title: "Payment added" })
+    }
+    setSaving(false); setPayOpen(false); payForm.reset(); load()
   }
 
   const onInvSubmit = async (data: any) => {
     setSaving(true)
     const amount = parseFloat(data.amount), tax = parseFloat(data.tax || "0")
-    await fetch("/api/invoices", {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ clientId: data.clientId, items: [{ description: data.description, quantity: 1, rate: amount, amount }], subtotal: amount, tax, total: amount + tax, dueDate: data.dueDate || null }),
-    })
-    setSaving(false); toast({ title: "Invoice created" }); setInvOpen(false); invForm.reset(); load()
+    const body = { clientId: data.clientId, items: [{ description: data.description, quantity: 1, rate: amount, amount }], subtotal: amount, tax, total: amount + tax, dueDate: data.dueDate || null }
+    if (editingInv) {
+      await fetch(`/api/invoices/${editingInv.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })
+      toast({ title: "Invoice updated" })
+    } else {
+      await fetch("/api/invoices", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })
+      toast({ title: "Invoice created" })
+    }
+    setSaving(false); setInvOpen(false); invForm.reset(); setEditingInv(null); load()
   }
 
   const markPaid = async (id: string) => {
@@ -74,10 +120,24 @@ export default function PaymentsPage() {
     toast({ title: "Marked as paid" }); load()
   }
 
+  const deletePay = async (id: string) => {
+    if (!confirm("Delete this payment?")) return
+    await fetch(`/api/payments/${id}`, { method: "DELETE" })
+    toast({ title: "Payment deleted" }); load()
+  }
+
+  const deleteInv = async (id: string) => {
+    if (!confirm("Delete this invoice?")) return
+    await fetch(`/api/invoices/${id}`, { method: "DELETE" })
+    toast({ title: "Invoice deleted" }); load()
+  }
+
   const filtered = payments.filter(p =>
     (p.client?.name || "").toLowerCase().includes(search.toLowerCase()) ||
     (p.description || "").toLowerCase().includes(search.toLowerCase())
   )
+
+  const clientProjects = selectedClientId ? projects.filter(p => p.clientId === selectedClientId || p.client?.id === selectedClientId) : projects
 
   const summaryCards = [
     { label: "Received", value: totalPaid, icon: CheckCircle, color: "bg-green-100 text-green-600", textColor: "text-green-600" },
@@ -88,8 +148,8 @@ export default function PaymentsPage() {
   return (
     <div className="space-y-4 md:space-y-6">
       <PageHeader title="Payments & Invoices" sub="Track all financial transactions">
-        <Button variant="outline" size="sm" onClick={() => setInvOpen(true)} className="gap-2 flex-1 sm:flex-none"><Plus className="w-4 h-4" /> Invoice</Button>
-        <Button size="sm" onClick={() => setPayOpen(true)} className="gap-2 flex-1 sm:flex-none"><Plus className="w-4 h-4" /> Payment</Button>
+        <Button variant="outline" size="sm" onClick={() => { setEditingInv(null); invForm.reset(); setInvOpen(true) }} className="gap-2 flex-1 sm:flex-none"><Plus className="w-4 h-4" /> Invoice</Button>
+        <Button size="sm" onClick={openAddPay} className="gap-2 flex-1 sm:flex-none"><Plus className="w-4 h-4" /> Payment</Button>
       </PageHeader>
 
       <div className="grid grid-cols-3 gap-3 md:gap-4">
@@ -130,25 +190,36 @@ export default function PaymentsPage() {
                           </div>
                           <div className="flex items-center justify-between mt-2">
                             <StatusBadge status={p.status} colors={statusColors} />
-                            {p.status === "PENDING" && <Button variant="outline" size="sm" className="h-6 text-xs" onClick={() => markPaid(p.id)}>Mark Paid</Button>}
+                            <div className="flex gap-1">
+                              {p.status === "PENDING" && <Button variant="outline" size="sm" className="h-6 text-xs" onClick={() => markPaid(p.id)}>Mark Paid</Button>}
+                              <Button variant="ghost" size="icon" className="w-7 h-7" onClick={() => openEditPay(p)}><Pencil className="w-3.5 h-3.5" /></Button>
+                              <Button variant="ghost" size="icon" className="w-7 h-7 text-red-500" onClick={() => deletePay(p.id)}><Trash2 className="w-3.5 h-3.5" /></Button>
+                            </div>
                           </div>
                         </div>
                       ))}
                   </div>
                   <div className="hidden md:block overflow-x-auto">
                     <Table>
-                      <TableHeader><TableRow><TableHead>Client</TableHead><TableHead>Description</TableHead><TableHead>Amount</TableHead><TableHead>Status</TableHead><TableHead>Date</TableHead><TableHead className="text-right">Actions</TableHead></TableRow></TableHeader>
+                      <TableHeader><TableRow><TableHead>Client</TableHead><TableHead>Project</TableHead><TableHead>Description</TableHead><TableHead>Amount</TableHead><TableHead>Status</TableHead><TableHead>Date</TableHead><TableHead className="text-right">Actions</TableHead></TableRow></TableHeader>
                       <TableBody>
                         {filtered.length === 0
-                          ? <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground py-12">No payments found</TableCell></TableRow>
+                          ? <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-12">No payments found</TableCell></TableRow>
                           : filtered.map(p => (
                             <TableRow key={p.id}>
                               <TableCell><p className="font-medium text-sm">{p.client?.name}</p><p className="text-xs text-muted-foreground">{p.client?.company}</p></TableCell>
+                              <TableCell className="text-sm text-muted-foreground">{projects.find(pr => pr.id === p.projectId)?.name || "—"}</TableCell>
                               <TableCell className="text-sm">{p.description || "—"}</TableCell>
                               <TableCell><AmountCell amount={p.amount} currency={clientCurrency(p.clientId)} /></TableCell>
                               <TableCell><StatusBadge status={p.status} colors={statusColors} /></TableCell>
                               <TableCell className="text-sm text-muted-foreground">{p.paidAt ? formatDate(p.paidAt) : p.dueDate ? `Due ${formatDate(p.dueDate)}` : "—"}</TableCell>
-                              <TableCell><div className="flex justify-end">{p.status === "PENDING" && <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => markPaid(p.id)}>Mark Paid</Button>}</div></TableCell>
+                              <TableCell>
+                                <div className="flex justify-end gap-1">
+                                  {p.status === "PENDING" && <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => markPaid(p.id)}>Mark Paid</Button>}
+                                  <Button variant="ghost" size="icon" className="w-8 h-8" onClick={() => openEditPay(p)}><Pencil className="w-4 h-4" /></Button>
+                                  <Button variant="ghost" size="icon" className="w-8 h-8 text-red-500" onClick={() => deletePay(p.id)}><Trash2 className="w-4 h-4" /></Button>
+                                </div>
+                              </TableCell>
                             </TableRow>
                           ))}
                       </TableBody>
@@ -175,7 +246,10 @@ export default function PaymentsPage() {
                           </div>
                           <div className="flex items-center justify-between mt-2">
                             <StatusBadge status={inv.status} colors={statusColors} />
-                            <Button variant="ghost" size="icon" className="w-7 h-7"><Download className="w-3.5 h-3.5" /></Button>
+                            <div className="flex gap-1">
+                              <Button variant="ghost" size="icon" className="w-7 h-7" onClick={() => openEditInv(inv)}><Pencil className="w-3.5 h-3.5" /></Button>
+                              <Button variant="ghost" size="icon" className="w-7 h-7 text-red-500" onClick={() => deleteInv(inv.id)}><Trash2 className="w-3.5 h-3.5" /></Button>
+                            </div>
                           </div>
                         </div>
                       ))}
@@ -193,7 +267,12 @@ export default function PaymentsPage() {
                               <TableCell><AmountCell amount={inv.total} currency={clientCurrency(inv.clientId)} /></TableCell>
                               <TableCell><StatusBadge status={inv.status} colors={statusColors} /></TableCell>
                               <TableCell className="text-sm text-muted-foreground">{inv.dueDate ? formatDate(inv.dueDate) : "—"}</TableCell>
-                              <TableCell><div className="flex justify-end"><Button variant="ghost" size="icon" className="w-8 h-8"><Download className="w-4 h-4" /></Button></div></TableCell>
+                              <TableCell>
+                                <div className="flex justify-end gap-1">
+                                  <Button variant="ghost" size="icon" className="w-8 h-8" onClick={() => openEditInv(inv)}><Pencil className="w-4 h-4" /></Button>
+                                  <Button variant="ghost" size="icon" className="w-8 h-8 text-red-500" onClick={() => deleteInv(inv.id)}><Trash2 className="w-4 h-4" /></Button>
+                                </div>
+                              </TableCell>
                             </TableRow>
                           ))}
                       </TableBody>
@@ -206,57 +285,148 @@ export default function PaymentsPage() {
         </TabsContent>
       </Tabs>
 
-      {/* Add Payment Dialog */}
+      {/* Add/Edit Payment Dialog */}
       <Dialog open={payOpen} onOpenChange={setPayOpen}>
-        <DialogContent className="max-w-sm w-[calc(100vw-2rem)] sm:w-full">
-          <DialogHeader><DialogTitle>Add Payment</DialogTitle></DialogHeader>
-          <form onSubmit={payForm.handleSubmit(onPaySubmit)} className="space-y-4">
-            <div className="space-y-1.5">
-              <Label>Client *</Label>
-              <Select onValueChange={v => payForm.setValue("clientId", v)}><SelectTrigger><SelectValue placeholder="Select client" /></SelectTrigger><SelectContent>{clients.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent></Select>
-            </div>
-            <div className="space-y-1.5">
-              <Label>Amount *</Label>
-              <div className="flex gap-2">
-                <Select defaultValue="INR" onValueChange={v => payForm.setValue("currency", v)}><SelectTrigger className="w-28 shrink-0"><SelectValue /></SelectTrigger><SelectContent>{CURRENCIES.map(c => <SelectItem key={c.code} value={c.code}>{c.code}</SelectItem>)}</SelectContent></Select>
-                <Input {...payForm.register("amount", { required: true })} type="number" step="0.01" placeholder="1000.00" />
-              </div>
-            </div>
-            <div className="space-y-1.5"><Label>Description</Label><Input {...payForm.register("description")} placeholder="Payment description" /></div>
-            <div className="grid grid-cols-2 gap-3">
+        <DialogContent className="max-w-md p-0 gap-0">
+          <DialogHeader className="px-6 pt-6 pb-4 border-b border-border space-y-0.5">
+            <DialogTitle className="text-base font-heading font-bold">{editingPay ? "Edit Payment" : "Add Payment"}</DialogTitle>
+            <p className="text-xs text-muted-foreground">{editingPay ? "Update payment details" : "Record a new payment transaction"}</p>
+          </DialogHeader>
+          <form onSubmit={payForm.handleSubmit(onPaySubmit)}>
+            <div className="px-6 py-5 space-y-5">
+
               <div className="space-y-1.5">
-                <Label>Status</Label>
-                <Select defaultValue="PENDING" onValueChange={v => payForm.setValue("status", v)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="PENDING">Pending</SelectItem><SelectItem value="PAID">Paid</SelectItem><SelectItem value="OVERDUE">Overdue</SelectItem></SelectContent></Select>
+                <Label className="text-sm font-medium">Client <span className="text-red-500">*</span></Label>
+                <Select
+                  key={editingPay?.clientId ?? "new-pay"}
+                  defaultValue={editingPay?.clientId}
+                  onValueChange={v => { payForm.setValue("clientId", v); setSelectedClientId(v) }}
+                >
+                  <SelectTrigger className="h-10"><SelectValue placeholder="Select a client…" /></SelectTrigger>
+                  <SelectContent>{clients.map(c => <SelectItem key={c.id} value={c.id}>{c.name}{c.company ? ` · ${c.company}` : ""}</SelectItem>)}</SelectContent>
+                </Select>
               </div>
-              <div className="space-y-1.5"><Label>Due Date</Label><Input {...payForm.register("dueDate")} type="date" /></div>
+
+              <div className="space-y-1.5">
+                <Label className="text-sm font-medium">Project (optional)</Label>
+                <Select
+                  key={editingPay?.projectId ?? "new-proj"}
+                  defaultValue={editingPay?.projectId}
+                  onValueChange={v => payForm.setValue("projectId", v)}
+                >
+                  <SelectTrigger className="h-10"><SelectValue placeholder="Link to a project…" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">No project</SelectItem>
+                    {clientProjects.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="border-t border-border" />
+
+              <div className="space-y-3">
+                <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">Amount</p>
+                <div className="flex gap-2">
+                  <Select defaultValue={editingPay?.currency || "INR"} onValueChange={v => payForm.setValue("currency", v)}>
+                    <SelectTrigger className="w-24 h-10 shrink-0"><SelectValue /></SelectTrigger>
+                    <SelectContent>{CURRENCIES.map(c => <SelectItem key={c.code} value={c.code}>{c.code}</SelectItem>)}</SelectContent>
+                  </Select>
+                  <Input {...payForm.register("amount", { required: true })} type="number" step="0.01" placeholder="1000.00" className="h-10" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-sm font-medium">Description</Label>
+                  <Input {...payForm.register("description")} placeholder="e.g. Website development milestone" className="h-10" />
+                </div>
+              </div>
+
+              <div className="border-t border-border" />
+
+              <div className="space-y-3">
+                <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">Status & Due Date</p>
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">Payment Status</Label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {([{v:"PENDING",l:"Pending",a:"bg-yellow-50 text-yellow-700 ring-2 ring-yellow-400 border-transparent"},{v:"PAID",l:"Paid",a:"bg-green-50 text-green-700 ring-2 ring-green-400 border-transparent"},{v:"OVERDUE",l:"Overdue",a:"bg-red-50 text-red-700 ring-2 ring-red-400 border-transparent"}]).map(opt => (
+                      <button key={opt.v} type="button" onClick={() => { payForm.setValue("status", opt.v); setPayStatus(opt.v) }}
+                        className={`py-2.5 rounded-xl border text-xs font-semibold transition-all text-center ${
+                          payStatus === opt.v ? opt.a : "border-border text-muted-foreground hover:bg-muted"
+                        }`}>{opt.l}</button>
+                    ))}
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-sm font-medium">Due Date</Label>
+                  <Input {...payForm.register("dueDate")} type="date" className="h-10" />
+                </div>
+              </div>
             </div>
-            <DialogFooter className="flex-col sm:flex-row gap-2">
+
+            <div className="px-6 py-4 border-t border-border flex flex-col-reverse sm:flex-row gap-2 justify-end bg-muted/20">
               <Button type="button" variant="outline" onClick={() => setPayOpen(false)} className="w-full sm:w-auto">Cancel</Button>
-              <SaveButton saving={saving} label="Add" />
-            </DialogFooter>
+              <Button type="submit" disabled={saving} className="w-full sm:w-auto bg-[#ecc94b] hover:bg-[#d4a017] text-[#212529] font-semibold gap-2">
+                {saving ? <><Loader2 className="w-4 h-4 animate-spin" />Saving…</> : editingPay ? "Update Payment" : "Add Payment"}
+              </Button>
+            </div>
           </form>
         </DialogContent>
       </Dialog>
 
-      {/* Create Invoice Dialog */}
-      <Dialog open={invOpen} onOpenChange={setInvOpen}>
-        <DialogContent className="max-w-sm w-[calc(100vw-2rem)] sm:w-full">
-          <DialogHeader><DialogTitle>Create Invoice</DialogTitle></DialogHeader>
-          <form onSubmit={invForm.handleSubmit(onInvSubmit)} className="space-y-4">
-            <div className="space-y-1.5">
-              <Label>Client *</Label>
-              <Select onValueChange={v => invForm.setValue("clientId", v)}><SelectTrigger><SelectValue placeholder="Select client" /></SelectTrigger><SelectContent>{clients.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent></Select>
+      {/* Create/Edit Invoice Dialog */}
+      <Dialog open={invOpen} onOpenChange={v => { setInvOpen(v); if (!v) setEditingInv(null) }}>
+        <DialogContent className="max-w-md p-0 gap-0">
+          <DialogHeader className="px-6 pt-6 pb-4 border-b border-border space-y-0.5">
+            <DialogTitle className="text-base font-heading font-bold">{editingInv ? "Edit Invoice" : "Create Invoice"}</DialogTitle>
+            <p className="text-xs text-muted-foreground">{editingInv ? `Editing ${editingInv.invoiceNo}` : "Generate a new invoice for a client"}</p>
+          </DialogHeader>
+          <form onSubmit={invForm.handleSubmit(onInvSubmit)}>
+            <div className="px-6 py-5 space-y-5">
+
+              <div className="space-y-1.5">
+                <Label className="text-sm font-medium">Client <span className="text-red-500">*</span></Label>
+                <Select
+                  key={editingInv?.clientId ?? "new-inv"}
+                  defaultValue={editingInv?.clientId}
+                  onValueChange={v => invForm.setValue("clientId", v)}
+                >
+                  <SelectTrigger className="h-10"><SelectValue placeholder="Select a client…" /></SelectTrigger>
+                  <SelectContent>{clients.map(c => <SelectItem key={c.id} value={c.id}>{c.name}{c.company ? ` · ${c.company}` : ""}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+
+              <div className="border-t border-border" />
+
+              <div className="space-y-3">
+                <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">Service & Amount</p>
+                <div className="space-y-1.5">
+                  <Label className="text-sm font-medium">Service Description <span className="text-red-500">*</span></Label>
+                  <Input {...invForm.register("description", { required: true })} placeholder="e.g. Web Development Services" className="h-10" />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-sm font-medium">Amount <span className="text-red-500">*</span></Label>
+                    <Input {...invForm.register("amount", { required: true })} type="number" step="0.01" placeholder="5000" className="h-10" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-sm font-medium">Tax (₹)</Label>
+                    <Input {...invForm.register("tax")} type="number" step="0.01" placeholder="0" className="h-10" />
+                  </div>
+                </div>
+              </div>
+
+              <div className="border-t border-border" />
+
+              <div className="space-y-1.5">
+                <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">Due Date</p>
+                <Input {...invForm.register("dueDate")} type="date" className="h-10 mt-2" />
+              </div>
             </div>
-            <div className="space-y-1.5"><Label>Service Description *</Label><Input {...invForm.register("description", { required: true })} placeholder="Web Development Services" /></div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5"><Label>Amount *</Label><Input {...invForm.register("amount", { required: true })} type="number" step="0.01" placeholder="5000" /></div>
-              <div className="space-y-1.5"><Label>Tax (₹)</Label><Input {...invForm.register("tax")} type="number" step="0.01" placeholder="0" /></div>
+
+            <div className="px-6 py-4 border-t border-border flex flex-col-reverse sm:flex-row gap-2 justify-end bg-muted/20">
+              <Button type="button" variant="outline" onClick={() => { setInvOpen(false); setEditingInv(null) }} className="w-full sm:w-auto">Cancel</Button>
+              <Button type="submit" disabled={saving} className="w-full sm:w-auto bg-[#ecc94b] hover:bg-[#d4a017] text-[#212529] font-semibold gap-2">
+                {saving ? <><Loader2 className="w-4 h-4 animate-spin" />Saving…</> : editingInv ? "Update Invoice" : "Create Invoice"}
+              </Button>
             </div>
-            <div className="space-y-1.5"><Label>Due Date</Label><Input {...invForm.register("dueDate")} type="date" /></div>
-            <DialogFooter className="flex-col sm:flex-row gap-2">
-              <Button type="button" variant="outline" onClick={() => setInvOpen(false)} className="w-full sm:w-auto">Cancel</Button>
-              <SaveButton saving={saving} label="Create Invoice" />
-            </DialogFooter>
           </form>
         </DialogContent>
       </Dialog>

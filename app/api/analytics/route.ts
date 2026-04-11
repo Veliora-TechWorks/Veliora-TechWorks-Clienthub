@@ -63,12 +63,16 @@ export async function GET() {
     clientRevenue[clientId] = (clientRevenue[clientId] || 0) + amount
   })
   const topClientIds = Object.entries(clientRevenue).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([id]) => id)
-  const topClients = await Promise.all(
-    topClientIds.map(async (id) => {
-      const doc = await db.collection("clients").doc(id).get()
-      return { clientId: id, _sum: { amount: clientRevenue[id] }, client: doc.exists ? { name: doc.data()!.name, company: doc.data()!.company } : null }
-    })
-  )
+  let topClients: any[] = []
+  if (topClientIds.length > 0) {
+    const refs = topClientIds.map(id => db.collection("clients").doc(id))
+    const docs = await db.getAll(...refs)
+    topClients = docs.map(doc => ({
+      clientId: doc.id,
+      _sum: { amount: clientRevenue[doc.id] },
+      client: doc.exists ? { name: doc.data()!.name, company: doc.data()!.company } : null,
+    }))
+  }
 
   return NextResponse.json({
     revenueByMonth: Object.entries(months).map(([month, revenue]) => ({ month, revenue })),

@@ -8,19 +8,18 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { toast } from "@/hooks/use-toast"
 import { formatCurrency } from "@/lib/utils"
-import { Plus, UserCheck, Loader2, MoreHorizontal, Trash2 } from "lucide-react"
+import { Plus, UserCheck, Loader2, MoreHorizontal, Trash2, Pencil } from "lucide-react"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 
 const STAGES = [
-  { key: "NEW", label: "New", color: "bg-blue-500" },
-  { key: "CONTACTED", label: "Contacted", color: "bg-yellow-500" },
-  { key: "QUALIFIED", label: "Qualified", color: "bg-purple-500" },
-  { key: "CONVERTED", label: "Converted", color: "bg-green-500" },
-  { key: "LOST", label: "Lost", color: "bg-red-500" },
+  { key: "NEW",       label: "New",       color: "bg-blue-500",   activeClass: "bg-blue-50 text-blue-700 ring-2 ring-blue-400" },
+  { key: "CONTACTED", label: "Contacted", color: "bg-yellow-500", activeClass: "bg-yellow-50 text-yellow-700 ring-2 ring-yellow-400" },
+  { key: "QUALIFIED", label: "Qualified", color: "bg-purple-500", activeClass: "bg-purple-50 text-purple-700 ring-2 ring-purple-400" },
+  { key: "CONVERTED", label: "Converted", color: "bg-green-500",  activeClass: "bg-green-50 text-green-700 ring-2 ring-green-400" },
+  { key: "LOST",      label: "Lost",      color: "bg-red-500",    activeClass: "bg-red-50 text-red-700 ring-2 ring-red-400" },
 ]
 
 const schema = z.object({
@@ -38,11 +37,17 @@ export default function LeadsPage() {
   const [leads, setLeads] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [open, setOpen] = useState(false)
+  const [editing, setEditing] = useState<any>(null)
   const [saving, setSaving] = useState(false)
-  const { register, handleSubmit, reset, setValue, formState: { errors } } = useForm<FormData>({ resolver: zodResolver(schema) })
+  const [leadStage, setLeadStage] = useState("NEW")
+  const [leadSource, setLeadSource] = useState("")
+  const { register, handleSubmit, reset, formState: { errors } } = useForm<FormData>({ resolver: zodResolver(schema) })
 
   const load = () => {
-    fetch("/api/leads").then(r => r.json()).then(d => { setLeads(d); setLoading(false) })
+    fetch("/api/leads")
+      .then(r => r.ok ? r.json() : [])
+      .then(d => { setLeads(Array.isArray(d) ? d : []); setLoading(false) })
+      .catch(() => setLoading(false))
   }
   useEffect(() => { load() }, [])
 
@@ -60,11 +65,25 @@ export default function LeadsPage() {
     })
   }
 
+  const openEdit = (lead: any) => {
+    setEditing(lead)
+    setLeadStage(lead.status || "NEW")
+    setLeadSource(lead.source || "")
+    reset({ name: lead.name, email: lead.email || "", phone: lead.phone || "", company: lead.company || "", value: lead.value || "", status: lead.status })
+    setOpen(true)
+  }
+
   const onSubmit = async (data: FormData) => {
     setSaving(true)
-    const res = await fetch("/api/leads", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) })
-    setSaving(false)
-    if (res.ok) { toast({ title: "Lead added" }); setOpen(false); reset(); load() }
+    if (editing) {
+      const res = await fetch(`/api/leads/${editing.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...data, status: leadStage, source: leadSource || data.source }) })
+      setSaving(false)
+      if (res.ok) { toast({ title: "Lead updated" }); setOpen(false); reset(); setEditing(null); load() }
+    } else {
+      const res = await fetch("/api/leads", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...data, status: leadStage, source: leadSource || data.source }) })
+      setSaving(false)
+      if (res.ok) { toast({ title: "Lead added" }); setOpen(false); reset(); load() }
+    }
   }
 
   const convertToClient = async (id: string, name: string) => {
@@ -95,7 +114,7 @@ export default function LeadsPage() {
             {leads.length} leads · {formatCurrency(totalValue)} pipeline · {formatCurrency(convertedValue)} converted
           </p>
         </div>
-        <Button size="sm" onClick={() => { reset({ status: "NEW" }); setOpen(true) }} className="gap-2 self-start sm:self-auto">
+        <Button size="sm" onClick={() => { setEditing(null); reset({ status: "NEW" }); setLeadStage("NEW"); setLeadSource(""); setOpen(true) }} className="gap-2 self-start sm:self-auto bg-[#ecc94b] hover:bg-[#d4a017] text-[#212529] font-semibold">
           <Plus className="w-4 h-4" /> Add Lead
         </Button>
       </div>
@@ -147,6 +166,9 @@ export default function LeadsPage() {
                                         </Button>
                                       </DropdownMenuTrigger>
                                       <DropdownMenuContent align="end">
+                                        <DropdownMenuItem onClick={() => openEdit(lead)}>
+                                          <Pencil className="w-4 h-4 mr-2" /> Edit Lead
+                                        </DropdownMenuItem>
                                         {lead.status !== "CONVERTED" && (
                                           <DropdownMenuItem onClick={() => convertToClient(lead.id, lead.name)}>
                                             <UserCheck className="w-4 h-4 mr-2 text-green-600" /> Convert to Client
@@ -179,59 +201,90 @@ export default function LeadsPage() {
         </DragDropContext>
       )}
 
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-md w-[calc(100vw-2rem)] sm:w-full">
-          <DialogHeader><DialogTitle>Add New Lead</DialogTitle></DialogHeader>
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <Label>Name *</Label>
-                <Input {...register("name")} placeholder="Alice Brown" />
-                {errors.name && <p className="text-xs text-red-500">{errors.name.message}</p>}
+      <Dialog open={open} onOpenChange={v => { setOpen(v); if (!v) setEditing(null) }}>
+        <DialogContent className="max-w-lg p-0 gap-0">
+          <DialogHeader className="px-6 pt-6 pb-4 border-b border-border space-y-0.5">
+            <DialogTitle className="text-base font-heading font-bold">{editing ? "Edit Lead" : "New Lead"}</DialogTitle>
+            <p className="text-xs text-muted-foreground">{editing ? `Editing ${editing?.name}` : "Add a new lead to your pipeline"}</p>
+          </DialogHeader>
+
+          <form onSubmit={handleSubmit(onSubmit)}>
+            <div className="px-6 py-5 space-y-5">
+
+              {/* ── Contact ── */}
+              <div className="space-y-3">
+                <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">Contact</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-sm font-medium">Name <span className="text-red-500">*</span></Label>
+                    <Input {...register("name")} placeholder="Alice Brown" className="h-10" />
+                    {errors.name && <p className="text-xs text-red-500">{errors.name.message}</p>}
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-sm font-medium">Email</Label>
+                    <Input {...register("email")} placeholder="alice@company.com" className="h-10" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-sm font-medium">Phone</Label>
+                    <Input {...register("phone")} placeholder="+91-98765-43210" className="h-10" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-sm font-medium">Company</Label>
+                    <Input {...register("company")} placeholder="Company Inc." className="h-10" />
+                  </div>
+                </div>
               </div>
-              <div className="space-y-1.5">
-                <Label>Email</Label>
-                <Input {...register("email")} placeholder="alice@company.com" />
+
+              <div className="border-t border-border" />
+
+              {/* ── Pipeline Stage ── */}
+              <div className="space-y-2">
+                <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">Pipeline Stage</p>
+                <div className="grid grid-cols-5 gap-1.5">
+                  {STAGES.map(s => (
+                    <button key={s.key} type="button" onClick={() => setLeadStage(s.key)}
+                      className={`py-2 rounded-xl border text-xs font-semibold transition-all text-center ${
+                        leadStage === s.key
+                          ? `${s.activeClass} border-transparent`
+                          : "border-border text-muted-foreground hover:bg-muted"
+                      }`}>{s.label}</button>
+                  ))}
+                </div>
               </div>
-              <div className="space-y-1.5">
-                <Label>Phone</Label>
-                <Input {...register("phone")} placeholder="+1-555-0100" />
-              </div>
-              <div className="space-y-1.5">
-                <Label>Company</Label>
-                <Input {...register("company")} placeholder="Company Inc." />
-              </div>
-              <div className="space-y-1.5">
-                <Label>Source</Label>
-                <Select onValueChange={v => setValue("source", v)}>
-                  <SelectTrigger><SelectValue placeholder="Select source" /></SelectTrigger>
-                  <SelectContent>
-                    {["Website", "Referral", "LinkedIn", "Cold Email", "Social Media", "Other"].map(s => (
-                      <SelectItem key={s} value={s}>{s}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1.5">
-                <Label>Deal Value ($)</Label>
-                <Input {...register("value")} type="number" placeholder="5000" />
+
+              <div className="border-t border-border" />
+
+              {/* ── Deal Info ── */}
+              <div className="space-y-3">
+                <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">Deal Info</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-sm font-medium">Deal Value (₹)</Label>
+                    <Input {...register("value")} type="number" placeholder="50000" className="h-10" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-sm font-medium">Source</Label>
+                    <div className="grid grid-cols-3 gap-1.5">
+                      {["Website","Referral","LinkedIn","Cold Email","Social","Other"].map(s => (
+                        <button key={s} type="button" onClick={() => setLeadSource(s)}
+                          className={`py-1.5 rounded-lg border text-[10px] font-semibold transition-all text-center ${
+                            leadSource === s
+                              ? "bg-[#ecc94b]/20 text-[#b7950b] ring-2 ring-[#ecc94b] border-transparent"
+                              : "border-border text-muted-foreground hover:bg-muted"
+                          }`}>{s}</button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
-            <div className="space-y-1.5">
-              <Label>Stage</Label>
-              <Select defaultValue="NEW" onValueChange={v => setValue("status", v)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {STAGES.map(s => <SelectItem key={s.key} value={s.key}>{s.label}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            <DialogFooter className="flex-col sm:flex-row gap-2">
+
+            <div className="px-6 py-4 border-t border-border flex flex-col-reverse sm:flex-row gap-2 justify-end bg-muted/20">
               <Button type="button" variant="outline" onClick={() => setOpen(false)} className="w-full sm:w-auto">Cancel</Button>
-              <Button type="submit" disabled={saving} className="w-full sm:w-auto">
-                {saving ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Adding...</> : "Add Lead"}
+              <Button type="submit" disabled={saving} className="w-full sm:w-auto bg-[#ecc94b] hover:bg-[#d4a017] text-[#212529] font-semibold gap-2">
+                {saving ? <><Loader2 className="w-4 h-4 animate-spin" />{editing ? "Saving…" : "Adding…"}</> : editing ? "Update Lead" : "Add Lead"}
               </Button>
-            </DialogFooter>
+            </div>
           </form>
         </DialogContent>
       </Dialog>

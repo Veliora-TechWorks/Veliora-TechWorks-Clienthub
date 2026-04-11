@@ -55,7 +55,7 @@ export async function POST(req: NextRequest) {
   if (error) return error
   const body = await req.json()
   const id = uuidv4()
-  const projectId = await generateProjectId()
+  const projectId = body.projectId?.trim() || await generateProjectId()
   const progress = Number(body.progress ?? 0)
   const data = {
     projectId, name: body.name, clientId: body.clientId,

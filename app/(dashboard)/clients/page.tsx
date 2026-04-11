@@ -19,6 +19,7 @@ import { Plus, Pencil, Trash2, Eye, Download, Loader2 } from "lucide-react"
 import Papa from "papaparse"
 
 const schema = z.object({
+  clientId: z.string().optional(),
   name: z.string().min(1, "Name required"),
   email: z.string().email("Invalid email"),
   phone: z.string().optional(),
@@ -49,8 +50,8 @@ export default function ClientsPage() {
   const load = () => { setLoading(true); fetch("/api/clients").then(r => r.ok ? r.json() : []).then(d => { setClients(Array.isArray(d) ? d : []); setLoading(false) }).catch(() => setLoading(false)) }
   useEffect(() => { load() }, [])
 
-  const openAdd = () => { setEditing(null); reset({ name: "", email: "", phone: "", company: "", status: "active", tag: "REGULAR", currency: "INR" }); setOpen(true) }
-  const openEdit = (c: any) => { setEditing(c); reset({ name: c.name, email: c.email, phone: c.phone || "", company: c.company || "", status: c.status || "active", tag: c.tag || "REGULAR", currency: c.currency || "INR" }); setOpen(true) }
+  const openAdd = () => { setEditing(null); reset({ clientId: "", name: "", email: "", phone: "", company: "", status: "active", tag: "REGULAR", currency: "INR" }); setOpen(true) }
+  const openEdit = (c: any) => { setEditing(c); reset({ clientId: c.clientId || "", name: c.name, email: c.email, phone: c.phone || "", company: c.company || "", status: c.status || "active", tag: c.tag || "REGULAR", currency: c.currency || "INR" }); setOpen(true) }
 
   const onSubmit = async (data: FormData) => {
     setSaving(true)
@@ -102,6 +103,7 @@ export default function ClientsPage() {
                       <div className="flex-1 min-w-0">
                         <p className="font-medium text-sm truncate">{c.name}</p>
                         <p className="text-xs text-muted-foreground truncate">{c.email}</p>
+                        {c.clientId && <p className="text-xs font-mono text-muted-foreground">{c.clientId}</p>}
                         {c.company && <p className="text-xs text-muted-foreground truncate">{c.company}</p>}
                         <span className={`text-xs px-2 py-0.5 rounded-full font-medium mt-1 inline-block ${tagColors[c.tag] || tagColors.REGULAR}`}>{c.tag}</span>
                       </div>
@@ -118,7 +120,7 @@ export default function ClientsPage() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Client</TableHead><TableHead>Company</TableHead><TableHead>Tag</TableHead>
+                          <TableHead>Client ID</TableHead><TableHead>Client</TableHead><TableHead>Company</TableHead><TableHead>Tag</TableHead>
                       <TableHead>Projects</TableHead><TableHead>Revenue</TableHead><TableHead>Joined</TableHead>
                       <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
@@ -128,6 +130,7 @@ export default function ClientsPage() {
                       ? <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-12">No clients found</TableCell></TableRow>
                       : filtered.map(c => (
                         <TableRow key={c.id}>
+                          <TableCell className="font-mono text-xs text-muted-foreground">{c.clientId || "—"}</TableCell>
                           <TableCell>
                             <div className="flex items-center gap-3">
                               <Avatar className="w-9 h-9"><AvatarFallback className="text-xs">{getInitials(c.name)}</AvatarFallback></Avatar>
@@ -169,6 +172,11 @@ export default function ClientsPage() {
               {/* ── Contact Info ── */}
               <div className="space-y-3">
                 <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">Contact Info</p>
+                <div className="space-y-1.5">
+                  <Label className="text-sm font-medium">Client ID <span className="text-muted-foreground font-normal text-xs">(optional)</span></Label>
+                  <Input {...register("clientId")} placeholder="e.g. CLT-001" className="h-10 font-mono" />
+                  <p className="text-xs text-muted-foreground">Custom identifier for this client</p>
+                </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="space-y-1.5">
                     <Label className="text-sm font-medium">Full Name <span className="text-red-500">*</span></Label>

@@ -23,6 +23,7 @@ const STAGES = [
 ]
 
 const schema = z.object({
+  leadId:  z.string().optional(),
   name: z.string().min(1, "Name required"),
   email: z.string().email("Invalid email").optional().or(z.literal("")),
   phone: z.string().optional(),
@@ -69,7 +70,7 @@ export default function LeadsPage() {
     setEditing(lead)
     setLeadStage(lead.status || "NEW")
     setLeadSource(lead.source || "")
-    reset({ name: lead.name, email: lead.email || "", phone: lead.phone || "", company: lead.company || "", value: lead.value || "", status: lead.status })
+    reset({ leadId: lead.leadId || "", name: lead.name, email: lead.email || "", phone: lead.phone || "", company: lead.company || "", value: lead.value || "", status: lead.status })
     setOpen(true)
   }
 
@@ -114,7 +115,7 @@ export default function LeadsPage() {
             {leads.length} leads · {formatCurrency(totalValue)} pipeline · {formatCurrency(convertedValue)} converted
           </p>
         </div>
-        <Button size="sm" onClick={() => { setEditing(null); reset({ status: "NEW" }); setLeadStage("NEW"); setLeadSource(""); setOpen(true) }} className="gap-2 self-start sm:self-auto bg-[#ecc94b] hover:bg-[#d4a017] text-[#212529] font-semibold">
+        <Button size="sm" onClick={() => { setEditing(null); reset({ leadId: "", status: "NEW" }); setLeadStage("NEW"); setLeadSource(""); setOpen(true) }} className="gap-2 self-start sm:self-auto bg-[#ecc94b] hover:bg-[#d4a017] text-[#212529] font-semibold">
           <Plus className="w-4 h-4" /> Add Lead
         </Button>
       </div>
@@ -181,6 +182,7 @@ export default function LeadsPage() {
                                     </DropdownMenu>
                                   </div>
                                   {lead.company && <p className="text-xs text-muted-foreground mt-0.5">{lead.company}</p>}
+                                  {lead.leadId && <p className="text-xs font-mono text-muted-foreground">{lead.leadId}</p>}
                                   {lead.source && <p className="text-xs text-muted-foreground">via {lead.source}</p>}
                                   {lead.value && (
                                     <p className="text-xs font-semibold text-[#b7950b] mt-1.5">{formatCurrency(lead.value)}</p>
@@ -214,6 +216,11 @@ export default function LeadsPage() {
               {/* ── Contact ── */}
               <div className="space-y-3">
                 <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">Contact</p>
+                <div className="space-y-1.5">
+                  <Label className="text-sm font-medium">Lead ID <span className="text-muted-foreground font-normal text-xs">(optional)</span></Label>
+                  <Input {...register("leadId")} placeholder="e.g. LEAD-001" className="h-10 font-mono" />
+                  <p className="text-xs text-muted-foreground">Custom identifier for this lead</p>
+                </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="space-y-1.5">
                     <Label className="text-sm font-medium">Name <span className="text-red-500">*</span></Label>

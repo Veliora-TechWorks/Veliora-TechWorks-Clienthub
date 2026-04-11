@@ -172,21 +172,28 @@ export default function ProjectDetailPage() {
         <div className="flex-1 min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <h1 className="text-xl md:text-2xl font-heading font-bold truncate">{project.name}</h1>
-            {project.link && (
-              <a href={project.link} target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-foreground transition-colors">
-                <ExternalLink className="w-4 h-4" />
-              </a>
-            )}
             {overdue && (
               <span className="flex items-center gap-1 text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full font-semibold">
                 <AlertTriangle className="w-3 h-3" /> Overdue
               </span>
             )}
           </div>
-          <p className="text-muted-foreground text-sm mt-0.5">
-            <span className="font-mono text-xs">{project.projectId}</span>
-            {project.client?.name && <> · {project.client.name}{project.client.company ? ` (${project.client.company})` : ""}</>}
-          </p>
+          <div className="flex items-center gap-2 mt-1 flex-wrap">
+            <p className="text-muted-foreground text-sm">
+              <span className="font-mono text-xs">{project.projectId}</span>
+              {project.client?.name && <> · {project.client.name}{project.client.company ? ` (${project.client.company})` : ""}</>}
+            </p>
+            {project.link && (
+              <a
+                href={project.link}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-lg bg-[#ecc94b]/20 text-[#b7950b] hover:bg-[#ecc94b]/40 transition-colors"
+              >
+                <ExternalLink className="w-3 h-3" /> View Live
+              </a>
+            )}
+          </div>
         </div>
         <div className="flex gap-2 shrink-0">
           <span className={`text-xs px-2.5 py-1 rounded-full font-semibold ${PRIORITY_COLORS[project.priority]}`}>{project.priority}</span>

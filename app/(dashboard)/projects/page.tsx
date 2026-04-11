@@ -36,11 +36,12 @@ const PRIORITY_COLORS: Record<string, string> = {
 
 // ── Zod schema ───────────────────────────────────────────────────────────────
 const schema = z.object({
+  projectId: z.string().optional(),
   name:      z.string().min(1, "Project name is required"),
   clientId:  z.string().optional(),
   link:      z.string().url("Must be a valid URL").or(z.literal("")).optional(),
   startDate: z.string().min(1, "Start date is required"),
-  endDate:   z.string().min(1, "End date is required"),
+  endDate:   z.string().optional(),
   priority:  z.enum(["LOW", "MEDIUM", "HIGH", "URGENT"]),
   status:    z.enum(["ONBOARDING", "IN_PROGRESS", "PENDING", "COMPLETED"]),
   progress:  z.coerce.number().min(0).max(100),
@@ -112,13 +113,14 @@ export default function ProjectsPage() {
 
   const openAdd = () => {
     setEditing(null)
-    reset({ priority: "MEDIUM", status: "ONBOARDING", progress: 0, name: "", clientId: "", link: "", startDate: "", endDate: "", remarks: "" })
+    reset({ projectId: "", priority: "MEDIUM", status: "ONBOARDING", progress: 0, name: "", clientId: "", link: "", startDate: "", endDate: "", remarks: "" })
     setOpen(true)
   }
 
   const openEdit = (p: any) => {
     setEditing(p)
     reset({
+      projectId: p.projectId || "",
       name:      p.name,
       clientId:  p.clientId,
       link:      p.link || "",
@@ -279,6 +281,11 @@ export default function ProjectsPage() {
                         <Progress value={p.progress} className="flex-1 h-2" />
                         <span className="text-xs font-medium w-8 shrink-0 text-right">{p.progress}%</span>
                       </div>
+                      {p.link && (
+                        <a href={p.link} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-xs text-[#b7950b] font-medium px-2.5 py-1.5 rounded-lg border border-[#ecc94b]/40 bg-[#ecc94b]/10 hover:bg-[#ecc94b]/20 w-fit">
+                          <ExternalLink className="w-3 h-3" /> View Live
+                        </a>
+                      )}
                       <div className="flex items-center justify-between">
                         <p className="text-xs text-muted-foreground">
                           {p.endDate ? (overdue ? <span className="text-red-500 font-medium">Overdue by {Math.abs(days!)}d</span> : `${days}d left`) : "No deadline"}
@@ -309,12 +316,13 @@ export default function ProjectsPage() {
                       <TableHead className="min-w-[140px]">Progress</TableHead>
                       <TableHead>Start Date</TableHead>
                       <TableHead>End Date</TableHead>
+                      <TableHead>Live</TableHead>
                       <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {paginated.length === 0 ? (
-                      <TableRow><TableCell colSpan={9} className="text-center text-muted-foreground py-16">No projects found</TableCell></TableRow>
+                      <TableRow><TableCell colSpan={10} className="text-center text-muted-foreground py-16">No projects found</TableCell></TableRow>
                     ) : paginated.map(p => {
                       const days    = daysRemaining(p.endDate)
                       const overdue = p.status !== "COMPLETED" && isOverdue(p.endDate)
@@ -324,7 +332,6 @@ export default function ProjectsPage() {
                           <TableCell>
                             <div className="flex items-center gap-1.5">
                               <span className="font-semibold text-sm">{p.name}</span>
-                              {p.link && <a href={p.link} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}><ExternalLink className="w-3 h-3 text-muted-foreground hover:text-foreground" /></a>}
                               {overdue && <AlertTriangle className="w-3.5 h-3.5 text-red-500" />}
                             </div>
                           </TableCell>
@@ -348,6 +355,7 @@ export default function ProjectsPage() {
                             </div>
                           </TableCell>
                           <TableCell className="text-sm text-muted-foreground">{p.startDate ? formatDate(p.startDate) : "—"}</TableCell>
+                          
                           <TableCell>
                             {p.endDate ? (
                               <div>
@@ -359,6 +367,13 @@ export default function ProjectsPage() {
                                 )}
                               </div>
                             ) : "—"}
+                          </TableCell>
+                          <TableCell>
+                            {p.link ? (
+                              <a href={p.link} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} className="inline-flex items-center gap-1 text-xs text-[#b7950b] font-medium hover:underline">
+                                <ExternalLink className="w-3 h-3" /> View Live
+                              </a>
+                            ) : <span className="text-muted-foreground">—</span>}
                           </TableCell>
                           <TableCell>
                             <div className="flex items-center justify-end gap-1">
@@ -417,15 +432,26 @@ export default function ProjectsPage() {
           <form onSubmit={handleSubmit(onSubmit)}>
             <div className="px-6 py-5 space-y-5">
 
-              {/* ── Row 1: Project Name ── */}
-              <div className="space-y-1.5">
-                <Label className="text-sm font-medium">Project Name <span className="text-red-500">*</span></Label>
-                <Input
-                  {...register("name")}
-                  placeholder="e.g. E-Commerce Platform Redesign"
-                  className="h-10"
-                />
-                {errors.name && <p className="text-xs text-red-500">{errors.name.message}</p>}
+              {/* ── Row 1: Project ID + Project Name ── */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label className="text-sm font-medium">Project ID <span className="text-muted-foreground font-normal text-xs">(optional)</span></Label>
+                  <Input
+                    {...register("projectId")}
+                    placeholder="e.g. PROJ-001"
+                    className="h-10 font-mono"
+                  />
+                  <p className="text-xs text-muted-foreground">Leave blank to auto-generate</p>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-sm font-medium">Project Name <span className="text-red-500">*</span></Label>
+                  <Input
+                    {...register("name")}
+                    placeholder="e.g. E-Commerce Platform Redesign"
+                    className="h-10"
+                  />
+                  {errors.name && <p className="text-xs text-red-500">{errors.name.message}</p>}
+                </div>
               </div>
 
               {/* ── Row 2: Client + Project URL ── */}
@@ -434,13 +460,16 @@ export default function ProjectsPage() {
                   <Label className="text-sm font-medium">Client</Label>
                   <Select
                     key={editing?.clientId ?? "new"}
-                    defaultValue={editing?.clientId}
-                    onValueChange={v => setValue("clientId", v, { shouldValidate: true })}
+                    defaultValue={editing?.clientId || ""}
+                    onValueChange={v => setValue("clientId", v === "__personal__" ? "" : v, { shouldValidate: true })}
                   >
                     <SelectTrigger className="h-10">
                       <SelectValue placeholder="Select a client…" />
                     </SelectTrigger>
                     <SelectContent>
+                      <SelectItem value="__personal__">
+                        <span className="flex items-center gap-2 text-muted-foreground italic">— Personal / No Client</span>
+                      </SelectItem>
                       {clients.map(c => (
                         <SelectItem key={c.id} value={c.id}>
                           <span className="font-medium">{c.name}</span>
@@ -474,9 +503,8 @@ export default function ProjectsPage() {
                   {errors.startDate && <p className="text-xs text-red-500">{errors.startDate.message}</p>}
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-sm font-medium">End Date <span className="text-red-500">*</span></Label>
+                  <Label className="text-sm font-medium">End Date <span className="text-muted-foreground font-normal text-xs">(optional)</span></Label>
                   <Input {...register("endDate")} type="date" className="h-10" />
-                  {errors.endDate && <p className="text-xs text-red-500">{errors.endDate.message}</p>}
                 </div>
               </div>
 

@@ -299,11 +299,14 @@ export default function PaymentsPage() {
                 <Label className="text-sm font-medium">Client <span className="text-red-500">*</span></Label>
                 <Select
                   key={editingPay?.clientId ?? "new-pay"}
-                  defaultValue={editingPay?.clientId}
-                  onValueChange={v => { payForm.setValue("clientId", v); setSelectedClientId(v) }}
+                  defaultValue={editingPay?.clientId || ""}
+                  onValueChange={v => { payForm.setValue("clientId", v === "__personal__" ? "" : v); setSelectedClientId(v === "__personal__" ? "" : v) }}
                 >
                   <SelectTrigger className="h-10"><SelectValue placeholder="Select a client…" /></SelectTrigger>
-                  <SelectContent>{clients.map(c => <SelectItem key={c.id} value={c.id}>{c.name}{c.company ? ` · ${c.company}` : ""}</SelectItem>)}</SelectContent>
+                  <SelectContent>
+                    <SelectItem value="__personal__">— Personal / No Client</SelectItem>
+                    {clients.map(c => <SelectItem key={c.id} value={c.id}>{c.name}{c.company ? ` · ${c.company}` : ""}</SelectItem>)}
+                  </SelectContent>
                 </Select>
               </div>
 
@@ -385,11 +388,14 @@ export default function PaymentsPage() {
                 <Label className="text-sm font-medium">Client <span className="text-red-500">*</span></Label>
                 <Select
                   key={editingInv?.clientId ?? "new-inv"}
-                  defaultValue={editingInv?.clientId}
-                  onValueChange={v => invForm.setValue("clientId", v)}
+                  defaultValue={editingInv?.clientId || ""}
+                  onValueChange={v => invForm.setValue("clientId", v === "__personal__" ? "" : v)}
                 >
                   <SelectTrigger className="h-10"><SelectValue placeholder="Select a client…" /></SelectTrigger>
-                  <SelectContent>{clients.map(c => <SelectItem key={c.id} value={c.id}>{c.name}{c.company ? ` · ${c.company}` : ""}</SelectItem>)}</SelectContent>
+                  <SelectContent>
+                    <SelectItem value="__personal__">— Personal / No Client</SelectItem>
+                    {clients.map(c => <SelectItem key={c.id} value={c.id}>{c.name}{c.company ? ` · ${c.company}` : ""}</SelectItem>)}
+                  </SelectContent>
                 </Select>
               </div>
 

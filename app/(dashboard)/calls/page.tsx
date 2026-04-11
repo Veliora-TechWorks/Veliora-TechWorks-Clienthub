@@ -13,33 +13,57 @@ import { toast } from "@/hooks/use-toast"
 import { formatDate, formatDateTime } from "@/lib/utils"
 import { Plus, Search, Trash2, Loader2, Calendar, Pencil } from "lucide-react"
 
+const PERSONAL = "__personal__"
+
 export default function CallsPage() {
   const [calls, setCalls] = useState<any[]>([])
   const [clients, setClients] = useState<any[]>([])
+  const [projects, setProjects] = useState<any[]>([])
+  const [leads, setLeads] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState("")
   const [open, setOpen] = useState(false)
   const [editing, setEditing] = useState<any>(null)
   const [saving, setSaving] = useState(false)
+  const [selectedClientId, setSelectedClientId] = useState("")
 
   const { register, handleSubmit, reset, setValue } = useForm<any>()
 
   const load = () => {
     setLoading(true)
-    Promise.all([fetch("/api/calls").then(r => r.json()), fetch("/api/clients").then(r => r.json())])
-      .then(([c, cl]) => { setCalls(Array.isArray(c) ? c : []); setClients(Array.isArray(cl) ? cl : []); setLoading(false) })
+    Promise.all([
+      fetch("/api/calls").then(r => r.json()),
+      fetch("/api/clients").then(r => r.json()),
+      fetch("/api/projects").then(r => r.json()),
+      fetch("/api/leads").then(r => r.json()),
+    ]).then(([c, cl, pr, ld]) => {
+      setCalls(Array.isArray(c) ? c : [])
+      setClients(Array.isArray(cl) ? cl : [])
+      setProjects(Array.isArray(pr) ? pr : [])
+      setLeads(Array.isArray(ld) ? ld : [])
+      setLoading(false)
+    })
   }
   useEffect(() => { load() }, [])
 
+  const clientProjects = selectedClientId
+    ? projects.filter(p => p.clientId === selectedClientId || p.client?.id === selectedClientId)
+    : projects
+
   const openAdd = () => {
     setEditing(null)
-    reset({ date: new Date().toISOString().slice(0, 16), clientId: "", duration: "", outcome: "", notes: "", nextCall: "" })
+    setSelectedClientId("")
+    reset({ date: new Date().toISOString().slice(0, 16), clientId: "", projectId: "", leadId: "", duration: "", outcome: "", notes: "", nextCall: "" })
     setOpen(true)
   }
+
   const openEdit = (c: any) => {
     setEditing(c)
+    setSelectedClientId(c.clientId || "")
     reset({
-      clientId: c.clientId,
+      clientId: c.clientId || "",
+      projectId: c.projectId || "",
+      leadId: c.leadId || "",
       date: c.date ? c.date.slice(0, 16) : "",
       duration: c.duration || "",
       outcome: c.outcome || "",
@@ -88,7 +112,6 @@ export default function CallsPage() {
         </Button>
       </div>
 
-      {/* Upcoming Follow-ups */}
       {upcoming.length > 0 && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           {upcoming.slice(0, 3).map(c => (
@@ -98,7 +121,7 @@ export default function CallsPage() {
                   <Calendar className="w-4 h-4 text-[#f97316]" />
                   <span className="text-xs font-semibold text-[#f97316]">Follow-up Due</span>
                 </div>
-                <p className="font-medium text-sm">{c.client?.name}</p>
+                <p className="font-medium text-sm">{c.client?.name || "Personal"}</p>
                 <p className="text-xs text-muted-foreground">{formatDate(c.nextCall)}</p>
               </CardContent>
             </Card>
@@ -116,7 +139,6 @@ export default function CallsPage() {
             <div className="space-y-3">{Array(4).fill(0).map((_, i) => <div key={i} className="animate-pulse h-16 bg-muted rounded-xl" />)}</div>
           ) : (
             <>
-              {/* Mobile cards */}
               <div className="md:hidden space-y-3">
                 {filtered.length === 0 ? (
                   <p className="text-center text-muted-foreground py-12 text-sm">No calls logged yet</p>
@@ -124,7 +146,7 @@ export default function CallsPage() {
                   <div key={c.id} className="p-3 rounded-xl border border-border bg-background">
                     <div className="flex items-start justify-between gap-2 mb-1">
                       <div>
-                        <p className="font-medium text-sm">{c.client?.name}</p>
+                        <p className="font-medium text-sm">{c.client?.name || <span className="italic text-muted-foreground">Personal</span>}</p>
                         <p className="text-xs text-muted-foreground">{formatDateTime(c.date)}{c.duration ? ` · ${c.duration} min` : ""}</p>
                       </div>
                       <div className="flex gap-1 shrink-0">
@@ -142,7 +164,6 @@ export default function CallsPage() {
                 ))}
               </div>
 
-              {/* Desktop table */}
               <div className="hidden md:block overflow-x-auto">
                 <Table>
                   <TableHeader>
@@ -162,10 +183,8 @@ export default function CallsPage() {
                     ) : filtered.map(c => (
                       <TableRow key={c.id}>
                         <TableCell>
-                          <div>
-                            <p className="font-medium text-sm">{c.client?.name}</p>
-                            <p className="text-xs text-muted-foreground">{c.client?.company}</p>
-                          </div>
+                          <p className="font-medium text-sm">{c.client?.name || <span className="italic text-muted-foreground">Personal</span>}</p>
+                          <p className="text-xs text-muted-foreground">{c.client?.company}</p>
                         </TableCell>
                         <TableCell className="text-sm">{formatDateTime(c.date)}</TableCell>
                         <TableCell className="text-sm">{c.duration ? `${c.duration} min` : "—"}</TableCell>
@@ -198,7 +217,7 @@ export default function CallsPage() {
         <DialogContent className="max-w-lg p-0 gap-0">
           <DialogHeader className="px-6 pt-6 pb-4 border-b border-border space-y-0.5">
             <DialogTitle className="text-base font-heading font-bold">{editing ? "Edit Call" : "Log a Call"}</DialogTitle>
-            <p className="text-xs text-muted-foreground">{editing ? "Update call details" : "Record a client call and schedule follow-ups"}</p>
+            <p className="text-xs text-muted-foreground">{editing ? "Update call details" : "Record a call and schedule follow-ups"}</p>
           </DialogHeader>
 
           <form onSubmit={handleSubmit(onSubmit)}>
@@ -206,16 +225,60 @@ export default function CallsPage() {
 
               {/* Client */}
               <div className="space-y-1.5">
-                <Label className="text-sm font-medium">Client <span className="text-red-500">*</span></Label>
-                <Select key={editing?.clientId ?? "new"} defaultValue={editing?.clientId} onValueChange={v => setValue("clientId", v)}>
+                <Label className="text-sm font-medium">Client</Label>
+                <Select
+                  key={editing?.clientId ?? "new"}
+                  defaultValue={editing?.clientId || PERSONAL}
+                  onValueChange={v => {
+                    const val = v === PERSONAL ? "" : v
+                    setValue("clientId", val)
+                    setSelectedClientId(val)
+                    setValue("projectId", "")
+                  }}
+                >
                   <SelectTrigger className="h-10"><SelectValue placeholder="Select a client…" /></SelectTrigger>
-                  <SelectContent>{clients.map(c => <SelectItem key={c.id} value={c.id}>{c.name}{c.company ? ` · ${c.company}` : ""}</SelectItem>)}</SelectContent>
+                  <SelectContent>
+                    <SelectItem value={PERSONAL}><span className="italic text-muted-foreground">— Personal / No Client</span></SelectItem>
+                    {clients.map(c => <SelectItem key={c.id} value={c.id}>{c.name}{c.company ? ` · ${c.company}` : ""}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Project */}
+              <div className="space-y-1.5">
+                <Label className="text-sm font-medium">Project <span className="text-muted-foreground font-normal text-xs">(optional)</span></Label>
+                <Select
+                  key={editing?.projectId ?? "new-proj"}
+                  defaultValue={editing?.projectId || ""}
+                  onValueChange={v => setValue("projectId", v)}
+                >
+                  <SelectTrigger className="h-10"><SelectValue placeholder="Link to a project…" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">No project</SelectItem>
+                    {clientProjects.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Lead */}
+              <div className="space-y-1.5">
+                <Label className="text-sm font-medium">Lead <span className="text-muted-foreground font-normal text-xs">(optional)</span></Label>
+                <Select
+                  key={editing?.leadId ?? "new-lead"}
+                  defaultValue={editing?.leadId || ""}
+                  onValueChange={v => setValue("leadId", v)}
+                >
+                  <SelectTrigger className="h-10"><SelectValue placeholder="Link to a lead…" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">No lead</SelectItem>
+                    {leads.map(l => <SelectItem key={l.id} value={l.id}>{l.name}{l.company ? ` · ${l.company}` : ""}</SelectItem>)}
+                  </SelectContent>
                 </Select>
               </div>
 
               <div className="border-t border-border" />
 
-              {/* Date & Duration */}
+              {/* Call Details */}
               <div className="space-y-3">
                 <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">Call Details</p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

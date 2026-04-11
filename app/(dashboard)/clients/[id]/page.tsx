@@ -15,7 +15,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { toast } from "@/hooks/use-toast"
 import { formatCurrency, formatDate, formatDateTime, getInitials, CURRENCIES } from "@/lib/utils"
-import { ArrowLeft, Phone, Mail, Building2, Calendar, CheckCircle2, Circle, Plus, Loader2, FolderKanban, DollarSign, PhoneCall } from "lucide-react"
+import { ArrowLeft, Phone, Mail, Building2, Calendar, CheckCircle2, Circle, Plus, Loader2, FolderKanban, DollarSign, PhoneCall, ExternalLink } from "lucide-react"
 
 const tagColors: Record<string, string> = {
   VIP: "bg-yellow-100 text-yellow-800",
@@ -207,6 +207,11 @@ export default function ClientDetailPage() {
                   <div>
                     <p className="font-medium">{p.name}</p>
                     {p.endDate && <p className="text-xs text-muted-foreground">Due {formatDate(p.endDate)}</p>}
+                    {p.link && (
+                      <a href={p.link} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} className="inline-flex items-center gap-1 text-xs text-[#b7950b] font-medium mt-0.5 hover:underline">
+                        <ExternalLink className="w-3 h-3" /> View Live
+                      </a>
+                    )}
                   </div>
                   <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${projectStatusColors[p.status]}`}>{p.status?.replace("_", " ")}</span>
                 </div>

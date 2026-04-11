@@ -99,7 +99,9 @@ export default function TasksPage() {
 
   const filtered = tasks.filter(t => {
     const matchSearch = t.title.toLowerCase().includes(search.toLowerCase()) || (t.project?.name || "").toLowerCase().includes(search.toLowerCase())
-    const matchClient = filterClient === "ALL" || (t.project?.client?.name && clients.find(c => c.id === filterClient)?.name === t.project.client.name)
+    const matchClient = filterClient === "ALL" || filterClient === "__personal__"
+      ? filterClient === "ALL" || !t.project?.client?.name
+      : (t.project?.client?.name && clients.find(c => c.id === filterClient)?.name === t.project.client.name)
     const matchProject = filterProject === "ALL" || t.projectId === filterProject
     return matchSearch && matchClient && matchProject
   })
@@ -127,6 +129,7 @@ export default function TasksPage() {
               <SelectTrigger className="w-full sm:w-[160px]"><SelectValue placeholder="All Clients" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="ALL">All Clients</SelectItem>
+                <SelectItem value="__personal__">— Personal / No Client</SelectItem>
                 {clients.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
               </SelectContent>
             </Select>
@@ -259,10 +262,10 @@ export default function TasksPage() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-1.5">
                   <Label className="text-sm font-medium">Client</Label>
-                  <Select value={selectedClientId} onValueChange={v => { setSelectedClientId(v); setValue("projectId", "") }}>
+                  <Select value={selectedClientId} onValueChange={v => { setSelectedClientId(v === "__personal__" ? "" : v); setValue("projectId", "") }}>
                     <SelectTrigger className="h-10"><SelectValue placeholder="Filter by client…" /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">All Clients</SelectItem>
+                      <SelectItem value="__personal__">— Personal / No Client</SelectItem>
                       {clients.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
                     </SelectContent>
                   </Select>
